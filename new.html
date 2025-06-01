@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>IoT Switch Control</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f0f2f5;
+      text-align: center;
+      padding: 20px;
+    }
+
+    h2 {
+      color: #333;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      margin: 20px auto;
+      max-width: 400px;
+      text-align: left;
+    }
+
+    .card h3 {
+      margin-top: 0;
+      color: #007bff;
+    }
+
+    input, button, select {
+      padding: 10px;
+      margin: 10px 0;
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    #status {
+      margin-top: 20px;
+      font-weight: bold;
+      color: green;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>🛠 IoT Switch Control Panel</h2>
+
+  <div class="card">
+    <h3>🔗 Device Connect</h3>
+    <input id="device" placeholder="Enter your Tasmota device ID">
+  </div>
+
+  <div class="card">
+    <h3>⚡ Power Control</h3>
+    <button onclick="togglePower()">🔁 Toggle Power</button>
+    <button onclick="turnOn()">🔆 Turn ON</button>
+    <button onclick="turnOff()">💡 Turn OFF</button>
+  </div>
+
+  <div class="card">
+    <h3>⏱️ Timer (Auto OFF)</h3>
+    <input id="timerSec" type="number" placeholder="Enter time in seconds">
+    <button onclick="setTimer()">⏳ Set Timer</button>
+  </div>
+
+  <div class="card">
+    <h3>🗓️ Schedule</h3>
+    <label>Choose Time:
+      <input id="scheduleTime" type="time">
+    </label><br>
+    <label>Action:
+      <select id="scheduleAction">
+        <option value="ON">Turn ON</option>
+        <option value="OFF">Turn OFF</option>
+      </select>
+    </label>
+    <button onclick="setSchedule()">🕒 Set Schedule</button>
+  </div>
+
+  <div id="status">Connecting to MQTT...</div>
+
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script>
+    const client = mqtt.connect('ws://broker.emqx.io:8083/mqtt');
+    const statusDiv = document.getElementById('status');
+
+    client.on('connect', () => {
+      statusDiv.textContent = '✅ Connected to MQTT broker';
+      statusDiv.style.color = 'green';
+    });
+
+    client.on('error', err => {
+      statusDiv.textContent = `❌ Error: ${err.message}`;
+      statusDiv.style.color = 'red';
+    });
+
+    function publishCommand(command) {
+      const device = document.getElementById('device').value.trim();
+      if (!device) {
+        statusDiv.textContent = 'Please enter a device name';
+        statusDiv.style.color = 'red';
+        return;
+      }
+
+      const topic = `cmnd/${device}/Power`;
+      client.publish(topic, command, {}, err => {
+        if (err) {
+          statusDiv.textContent = `❌ Failed to send ${command}: ${err.message}`;
+          statusDiv.style.color = 'red';
+        } else {
+          statusDiv.textContent = `✅ Sent ${command} to ${topic}`;
+          statusDiv.style.color = 'green';
+        }
+      });
+    }
+
+    function togglePower() {
+      publishCommand("TOGGLE");
+    }
+
+    function turnOn() {
+      publishCommand("ON");
+    }
+
+    function turnOff() {
+      publishCommand("OFF");
+    }
+
+    function setTimer() {
+      const seconds = parseInt(document.getElementById('timerSec').value);
+      if (isNaN(seconds) || seconds <= 0) {
+        statusDiv.textContent = 'Please enter valid seconds';
+        statusDiv.style.color = 'red';
+        return;
+      }
+
+      turnOn();
+      setTimeout(turnOff, seconds * 1000);
+      statusDiv.textContent = `✅ ON for ${seconds} seconds`;
+      statusDiv.style.color = 'blue';
+    }
+
+    function setSchedule() {
+      const time = document.getElementById('scheduleTime').value;
+      const action = document.getElementById('scheduleAction').value;
+
+      if (!time) {
+        statusDiv.textContent = 'Please select a time';
+        statusDiv.style.color = 'red';
+        return;
+      }
+
+      const [hour, minute] = time.split(':');
+      const targetTime = new Date();
+      targetTime.setHours(parseInt(hour));
+      targetTime.setMinutes(parseInt(minute));
+      targetTime.setSeconds(0);
+
+      const now = new Date();
+      const delay = targetTime.getTime() - now.getTime();
+
+      if (delay < 0) {
+        statusDiv.textContent = 'Selected time has already passed today';
+        statusDiv.style.color = 'red';
+        return;
+      }
+
+      statusDiv.textContent = `⏰ Scheduled ${action} at ${time}`;
+      statusDiv.style.color = 'blue';
+
+      setTimeout(() => {
+        publishCommand(action);
+      }, delay);
+    }
+  </script>
+</body>
+</html>
