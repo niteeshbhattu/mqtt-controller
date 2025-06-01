@@ -1,0 +1,42 @@
+<body>
+  <h2>Power Toggle</h2>
+  <input id="device" placeholder="tasmota_device">
+  <button id="powerBtn">Toggle Power</button>
+  <div id="status"></div>
+
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script>
+    const client = mqtt.connect('ws://broker.emqx.io:8083/mqtt');
+    const statusDiv = document.getElementById('status');
+
+    client.on('connect', () => {
+      statusDiv.textContent = 'Connected to MQTT broker';
+      statusDiv.style.color = 'green';
+    });
+
+    client.on('error', err => {
+      statusDiv.textContent = `Error: ${err.message}`;
+      statusDiv.style.color = 'red';
+    });
+
+    document.getElementById('powerBtn').addEventListener('click', () => {
+      const device = document.getElementById('device').value.trim();
+      if (!device) {
+        statusDiv.textContent = 'Please enter a device topic';
+        statusDiv.style.color = 'red';
+        return;
+      }
+
+      const topic = `cmnd/${device}/Power`;
+      client.publish(topic, 'TOGGLE', {}, err => {
+        if (err) {
+          statusDiv.textContent = `Failed to send command: ${err.message}`;
+          statusDiv.style.color = 'red';
+        } else {
+          statusDiv.textContent = `Sent TOGGLE command to ${topic}`;
+          statusDiv.style.color = 'green';
+        }
+      });
+    });
+  </script>
+</body>
